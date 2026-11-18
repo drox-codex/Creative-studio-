@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user profile, brand kit defaults, and cloud preferences.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Authenticated Firebase UID" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "email": { "type": "string", "description": "User email address" },
+        "photoUrl": { "type": "string", "description": "Profile avatar URL" },
+        "preferredTheme": { "type": "string", "enum": ["obsidian", "slate"], "description": "UI theme variant" },
+        "preferredExportQuality": { "type": "integer", "description": "Default JPEG/PNG export quality (70-100)" },
+        "brandName": { "type": "string", "description": "Saved brand kit name" },
+        "brandPrimaryHex": { "type": "string", "description": "Primary brand hex color" },
+        "brandAccentHex": { "type": "string", "description": "Accent brand hex color" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update" }
+      },
+      "required": ["userId", "displayName", "createdAt", "updatedAt"]
+    },
+    "CreativeProject": {
+      "title": "CreativeProject",
+      "description": "User-owned creative studio project supporting Photo, Design, or Video workspaces.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase UID" },
+        "name": { "type": "string", "description": "Project display title" },
+        "projectType": { "type": "string", "enum": ["PHOTO", "DESIGN", "VIDEO"], "description": "Studio workspace type" },
+        "canvasWidth": { "type": "integer", "description": "Canvas width in pixels" },
+        "canvasHeight": { "type": "integer", "description": "Canvas height in pixels" },
+        "backgroundColorHex": { "type": "string", "description": "Canvas background hex color" },
+        "thumbnailHint": { "type": "string", "description": "Local thumbnail file path or template preset key" },
+        "mediaUri": { "type": "string", "description": "Primary imported image or video URI" },
+        "adjustments": { "type": "object", "description": "Non-destructive color grading, filter, and crop settings" },
+        "layers": { "type": "array", "description": "Ordered list of text, shape, image, and drawing layers" },
+        "clips": { "type": "array", "description": "Ordered list of video/audio timeline clips" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update" }
+      },
+      "required": ["userId", "name", "projectType", "canvasWidth", "canvasHeight", "backgroundColorHex", "createdAt", "updatedAt"]
+    },
+    "AiHistoryEntry": {
+      "title": "AiHistoryEntry",
+      "description": "Log of AI Creative Assistant operations executed on a user's project.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase UID" },
+        "projectId": { "type": "string", "description": "Associated project document ID" },
+        "prompt": { "type": "string", "description": "User instruction" },
+        "response": { "type": "string", "description": "Assistant explanation" },
+        "appliedAction": { "type": "string", "description": "Executed command identifier" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation" }
+      },
+      "required": ["userId", "prompt", "response", "appliedAction", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Authenticated user profile and brand kit settings."
+    },
+    "/users/{userId}/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/CreativeProject" },
+      "description": "User-isolated creative projects for Photo, Design, and Video studios."
+    },
+    "/users/{userId}/ai_history/{entryId}": {
+      "schema": { "$ref": "#/entities/AiHistoryEntry" },
+      "description": "User-isolated AI assistant operation history."
+    }
+  }
+}

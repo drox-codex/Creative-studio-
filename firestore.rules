@@ -1,0 +1,146 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 150)) &&
+             (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 500)) &&
+             (!('preferredTheme' in data) || (data.preferredTheme is string && data.preferredTheme in ['obsidian', 'slate'])) &&
+             (!('preferredExportQuality' in data) || (data.preferredExportQuality is int && data.preferredExportQuality >= 70 && data.preferredExportQuality <= 100)) &&
+             (!('brandName' in data) || (data.brandName is string && data.brandName.size() <= 80)) &&
+             (!('brandPrimaryHex' in data) || (data.brandPrimaryHex is string && data.brandPrimaryHex.size() <= 16)) &&
+             (!('brandAccentHex' in data) || (data.brandAccentHex is string && data.brandAccentHex.size() <= 16)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidProject(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+             data.projectType is string && data.projectType in ['PHOTO', 'DESIGN', 'VIDEO'] &&
+             data.canvasWidth is int && data.canvasWidth >= 64 && data.canvasWidth <= 8192 &&
+             data.canvasHeight is int && data.canvasHeight >= 64 && data.canvasHeight <= 8192 &&
+             data.backgroundColorHex is string && data.backgroundColorHex.size() >= 4 && data.backgroundColorHex.size() <= 16 &&
+             (!('thumbnailHint' in data) || (data.thumbnailHint is string && data.thumbnailHint.size() <= 500)) &&
+             (!('mediaUri' in data) || (data.mediaUri is string && data.mediaUri.size() <= 1000)) &&
+             (!('adjustments' in data) || data.adjustments is map) &&
+             (!('layers' in data) || (data.layers is list && data.layers.size() <= 60)) &&
+             (!('clips' in data) || (data.clips is list && data.clips.size() <= 40)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidAiHistory(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             (!('projectId' in data) || (data.projectId is string && data.projectId.size() <= 128)) &&
+             data.prompt is string && data.prompt.size() >= 1 && data.prompt.size() <= 2000 &&
+             data.response is string && data.response.size() >= 1 && data.response.size() <= 4000 &&
+             data.appliedAction is string && data.appliedAction.size() <= 120 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'displayName', 'email', 'photoUrl',
+                         'preferredTheme', 'preferredExportQuality',
+                         'brandName', 'brandPrimaryHex', 'brandAccentHex',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidUserProfile(incoming());
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'displayName', 'email', 'photoUrl',
+                         'preferredTheme', 'preferredExportQuality',
+                         'brandName', 'brandPrimaryHex', 'brandAccentHex',
+                         'updatedAt'
+                       ]);
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /projects/{projectId} {
+        allow get: if isOwner(userId) && isValidId(projectId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(projectId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'name', 'projectType',
+                           'canvasWidth', 'canvasHeight', 'backgroundColorHex',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'name', 'projectType',
+                           'canvasWidth', 'canvasHeight', 'backgroundColorHex',
+                           'thumbnailHint', 'mediaUri', 'adjustments',
+                           'layers', 'clips', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidProject(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(projectId) &&
+                         isValidProject(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().projectType == existing().projectType &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'name', 'canvasWidth', 'canvasHeight', 'backgroundColorHex',
+                           'thumbnailHint', 'mediaUri', 'adjustments',
+                           'layers', 'clips', 'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(projectId);
+      }
+
+      match /ai_history/{entryId} {
+        allow get: if isOwner(userId) && isValidId(entryId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(entryId) &&
+                         incoming().keys().hasAll(['userId', 'prompt', 'response', 'appliedAction', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'projectId', 'prompt', 'response', 'appliedAction', 'createdAt']) &&
+                         isValidAiHistory(incoming());
+
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(entryId);
+      }
+    }
+  }
+}

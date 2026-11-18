@@ -1,0 +1,34 @@
+<resources>
+    <string name="app_name">Creative Studio</string>
+    <string name="tagline">Create · Edit · Inspire</string>
+    <string name="welcome_back">Welcome Back</string>
+    <string name="sign_in_subtitle">Sign in to continue your creative journey</string>
+    <string name="sign_in_google">Sign in with Google</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_projects">Projects</string>
+    <string name="nav_new">New</string>
+    <string name="nav_assets">Assets</string>
+    <string name="nav_profile">Profile</string>
+    <string name="search_placeholder">Search templates, projects…</string>
+    <string name="new_project">New Project</string>
+    <string name="quick_access">Quick Access</string>
+    <string name="recent_projects">Recent Projects</string>
+    <string name="continue_editing">Continue Editing</string>
+    <string name="curated_templates">Curated Templates</string>
+    <string name="studio_photo">Photo</string>
+    <string name="studio_design">Design</string>
+    <string name="studio_video">Video</string>
+    <string name="studio_ai">AI Studio</string>
+    <string name="photo_editor_title">Photo Editor</string>
+    <string name="design_studio_title">Design Studio</string>
+    <string name="video_editor_title">Video Editor</string>
+    <string name="ai_assistant_title">AI Assistant</string>
+    <string name="assets_title">Assets</string>
+    <string name="projects_title">My Projects</string>
+    <string name="profile_title">My Profile</string>
+    <string name="settings_title">Settings</string>
+    <string name="export_action">Export</string>
+    <string name="save_action">Save</string>
+    <string name="sign_out">Sign Out</string>
+    <string name="delete_account">Delete Account</string>
+</resources>

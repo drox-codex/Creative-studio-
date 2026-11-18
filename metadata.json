@@ -1,0 +1,6 @@
+{
+  "name": "Creative Studio",
+  "description": "All-in-one professional mobile creative suite combining photo editing, graphic design studio, non-linear video editing, and Gemini AI creative assistant.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
