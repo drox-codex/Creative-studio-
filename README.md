@@ -117,6 +117,6 @@ The workflow in `.github/workflows/android-release.yml` is configured specifical
    - `ANDROID_KEYSTORE_BASE64`: Base64 string of `my-upload-key.jks`
    - `STORE_PASSWORD`: Keystore password
    - `KEY_PASSWORD`: Key password for alias `upload`
-   - *(Optional)* `GOOGLE_SERVICES_JSON_BASE64`: Base64 string of `app/google-services.json` if not committed to your repository
+   - *(Optional)* `GOOGLE_SERVICES_JSON`: Raw JSON contents of `app/google-services.json` (recommended, no Base64 encoding needed), or `GOOGLE_SERVICES_JSON_BASE64` if Base64-encoded, if not committed to your repository
 
 > If signing secrets are not yet configured, the workflow generates an ephemeral CI keystore (`alias: upload`) so Release compilation and artifact checks can still be verified, and posts a reminder in the build summary before publishing to Google Play.

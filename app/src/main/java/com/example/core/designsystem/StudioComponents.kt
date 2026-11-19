@@ -66,6 +66,7 @@ fun CreativeStudioMark(
     Canvas(modifier = modifier.size(size)) {
         val w = this.size.width
         val h = this.size.height
+        if (w <= 0f || h <= 0f) return@Canvas
         val stroke = w * 0.16f
         val inset = stroke * 0.7f
         val arcBrush = Brush.linearGradient(

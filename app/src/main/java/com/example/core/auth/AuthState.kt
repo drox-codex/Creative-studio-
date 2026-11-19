@@ -8,7 +8,8 @@ sealed interface AuthState {
     data object Authenticating : AuthState
     data class Authenticated(
         val uid: String,
-        val profile: UserProfile
+        val profile: UserProfile,
+        val isGuest: Boolean = false
     ) : AuthState
     data class Error(val message: String) : AuthState
 }

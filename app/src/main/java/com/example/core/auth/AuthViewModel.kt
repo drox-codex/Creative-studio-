@@ -22,13 +22,15 @@ import kotlinx.coroutines.launch
  */
 class AuthViewModel(
     private val gateway: AuthGateway,
-    private val runStartupCheck: Boolean = true
+    private val runStartupCheck: Boolean = true,
+    private val guestStore: GuestWorkspaceStore? = null
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Initializing)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
     private var profileJob: Job? = null
+    private var startupJob: Job? = null
     private var activeSignInInProgress = false
 
     init {
@@ -44,7 +46,13 @@ class AuthViewModel(
                 if (identity == null) {
                     profileJob?.cancel()
                     profileJob = null
-                    if (!activeSignInInProgress && _authState.value !is AuthState.Initializing && _authState.value !is AuthState.Error) {
+                    val current = _authState.value
+                    val inGuestMode = current is AuthState.Authenticated && current.isGuest
+                    if (!activeSignInInProgress &&
+                        !inGuestMode &&
+                        current !is AuthState.Initializing &&
+                        current !is AuthState.Error
+                    ) {
                         _authState.value = AuthState.Unauthenticated
                     }
                 } else if (!activeSignInInProgress) {
@@ -55,11 +63,16 @@ class AuthViewModel(
     }
 
     fun restoreOrSilentSignIn() {
-        viewModelScope.launch {
+        startupJob?.cancel()
+        startupJob = viewModelScope.launch {
             _authState.value = AuthState.Initializing
             val existing = gateway.currentIdentity()
             if (existing != null) {
                 initializeAuthenticatedSession(existing)
+                return@launch
+            }
+            if (guestStore?.isGuestActive() == true) {
+                enterGuestState()
                 return@launch
             }
             val silent = gateway.attemptSilentSignIn()
@@ -71,18 +84,45 @@ class AuthViewModel(
         }
     }
 
+    fun continueAsGuest() {
+        if (activeSignInInProgress) return
+        startupJob?.cancel()
+        startupJob = null
+        profileJob?.cancel()
+        profileJob = null
+        guestStore?.setGuestActive(true)
+        enterGuestState()
+    }
+
+    private fun enterGuestState() {
+        val profile = guestStore?.loadGuestProfile() ?: UserProfile(
+            id = GUEST_USER_ID,
+            userId = GUEST_USER_ID,
+            displayName = "Guest Creator",
+            brandName = "Local Studio"
+        )
+        _authState.value = AuthState.Authenticated(
+            uid = GUEST_USER_ID,
+            profile = profile,
+            isGuest = true
+        )
+    }
+
     fun signInWithGoogle(activityContext: Context) {
         if (activeSignInInProgress) return
+        val wasGuest = (_authState.value as? AuthState.Authenticated)?.isGuest == true
         viewModelScope.launch {
             activeSignInInProgress = true
             _authState.value = AuthState.Authenticating
             try {
                 when (val result = gateway.signInWithGoogle(activityContext)) {
                     is InteractiveSignInResult.Success -> {
+                        guestStore?.setGuestActive(false)
                         initializeAuthenticatedSession(result.identity)
                     }
                     is InteractiveSignInResult.Cancelled -> {
-                        _authState.value = AuthState.Unauthenticated
+                        if (wasGuest) enterGuestState()
+                        else _authState.value = AuthState.Unauthenticated
                     }
                     is InteractiveSignInResult.Failure -> {
                         _authState.value = AuthState.Error(result.message)
@@ -106,7 +146,12 @@ class AuthViewModel(
         val profileResult = gateway.ensureUserProfile(identity)
         profileResult.fold(
             onSuccess = { profile ->
-                _authState.value = AuthState.Authenticated(uid = identity.uid, profile = profile)
+                guestStore?.setGuestActive(false)
+                _authState.value = AuthState.Authenticated(
+                    uid = identity.uid,
+                    profile = profile,
+                    isGuest = false
+                )
                 startObservingProfile(identity.uid)
             },
             onFailure = { error ->
@@ -148,6 +193,12 @@ class AuthViewModel(
                 brandAccentHex = brandAccentHex,
                 preferredExportQuality = preferredExportQuality
             )
+            if (current.isGuest) {
+                guestStore?.saveGuestProfile(updated)
+                _authState.value = current.copy(profile = updated)
+                onComplete(Result.success(Unit))
+                return@launch
+            }
             val result = gateway.updateUserProfile(current.uid, updated)
             if (result.isSuccess) {
                 _authState.value = current.copy(profile = updated)
@@ -166,7 +217,12 @@ class AuthViewModel(
         viewModelScope.launch {
             profileJob?.cancel()
             profileJob = null
-            gateway.signOut()
+            val current = _authState.value
+            if (current is AuthState.Authenticated && current.isGuest) {
+                guestStore?.setGuestActive(false)
+            } else {
+                gateway.signOut()
+            }
             _authState.value = AuthState.Unauthenticated
         }
     }
@@ -176,6 +232,11 @@ class AuthViewModel(
         viewModelScope.launch {
             profileJob?.cancel()
             profileJob = null
+            if (current.isGuest) {
+                guestStore?.clearGuestWorkspace()
+                _authState.value = AuthState.Unauthenticated
+                return@launch
+            }
             val res = gateway.deleteAccount(current.uid)
             res.fold(
                 onSuccess = { _authState.value = AuthState.Unauthenticated },
@@ -189,7 +250,11 @@ class AuthViewModel(
     companion object {
         fun provideFactory(appContext: Context): ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                AuthViewModel(FirebaseAuthGateway(appContext.applicationContext))
+                val app = appContext.applicationContext
+                AuthViewModel(
+                    gateway = FirebaseAuthGateway(app),
+                    guestStore = FileGuestWorkspaceStore(app)
+                )
             }
         }
     }

@@ -320,7 +320,7 @@ class PhotoEditorViewModel(
         viewModelScope.launch {
             _isBusy.value = true
             val res = repository.updateProject(currentUserId, current)
-            _statusMessage.value = if (res.isSuccess) "Saved to cloud" else res.exceptionOrNull()?.localizedMessage ?: "Save failed"
+            _statusMessage.value = if (res.isSuccess) "Project saved" else res.exceptionOrNull()?.localizedMessage ?: "Save failed"
             _isBusy.value = false
         }
     }

@@ -23,12 +23,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,6 +57,7 @@ import com.example.core.designsystem.StudioSpacing
 fun AuthScreen(
     authState: AuthState,
     onGoogleSignIn: () -> Unit,
+    onContinueWithoutAccount: () -> Unit = {},
     onDismissError: () -> Unit
 ) {
     val isLoading = authState is AuthState.Initializing || authState is AuthState.Authenticating
@@ -70,11 +73,12 @@ fun AuthScreen(
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
+            if (w <= 0f || h <= 0f) return@Canvas
             drawRect(
                 brush = Brush.radialGradient(
                     colors = listOf(Color(0xFF171A21), StudioColors.BackgroundPrimary),
                     center = Offset(w * 0.5f, h * 0.28f),
-                    radius = w * 0.9f
+                    radius = (w * 0.9f).coerceAtLeast(1f)
                 )
             )
             val wave1 = Path().apply {
@@ -200,6 +204,35 @@ fun AuthScreen(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(StudioSpacing.sm))
+
+                OutlinedButton(
+                    onClick = onContinueWithoutAccount,
+                    enabled = authState !is AuthState.Authenticating,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 52.dp)
+                        .testTag("guest_sign_in_button"),
+                    shape = RoundedCornerShape(StudioRadii.md),
+                    border = BorderStroke(1.dp, StudioColors.BorderFocused),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = StudioColors.PureWhite
+                    ),
+                    contentPadding = PaddingValues(horizontal = StudioSpacing.lg, vertical = StudioSpacing.sm)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.PersonOutline,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = StudioColors.MetallicSilver
+                    )
+                    Spacer(modifier = Modifier.width(StudioSpacing.sm))
+                    Text(
+                        text = stringResource(R.string.continue_without_account),
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(StudioSpacing.md))
 
                 Surface(
@@ -215,13 +248,13 @@ fun AuthScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Private Cloud Isolation",
+                                text = "Cloud Sync or Local Studio",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "Projects, brand assets, and AI history stay isolated to your Google account.",
+                                text = "Sign in with Google for cloud sync across devices, or continue locally on this device anytime.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -246,6 +279,7 @@ fun AuthScreenRoute(authViewModel: AuthViewModel, authState: AuthState) {
     AuthScreen(
         authState = authState,
         onGoogleSignIn = { authViewModel.signInWithGoogle(context) },
+        onContinueWithoutAccount = { authViewModel.continueAsGuest() },
         onDismissError = { authViewModel.dismissError() }
     )
 }

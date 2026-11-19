@@ -4,6 +4,7 @@
     <string name="welcome_back">Welcome Back</string>
     <string name="sign_in_subtitle">Sign in to continue your creative journey</string>
     <string name="sign_in_google">Sign in with Google</string>
+    <string name="continue_without_account">Continue without Account</string>
     <string name="nav_home">Home</string>
     <string name="nav_projects">Projects</string>
     <string name="nav_new">New</string>

@@ -314,7 +314,7 @@ class VideoEditorViewModel(
         val current = (_projectState.value as? UiState.Success)?.data ?: return
         viewModelScope.launch {
             val res = repository.updateProject(currentUserId, current)
-            _statusMessage.value = if (res.isSuccess) "Timeline saved to cloud" else res.exceptionOrNull()?.localizedMessage ?: "Save failed"
+            _statusMessage.value = if (res.isSuccess) "Timeline saved" else res.exceptionOrNull()?.localizedMessage ?: "Save failed"
         }
     }
 

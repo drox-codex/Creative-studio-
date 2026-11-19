@@ -110,6 +110,8 @@ import com.example.feature.photoeditor.PhotoEditorScreen
 import com.example.feature.photoeditor.PhotoEditorViewModel
 import com.example.feature.profile.ProfileScreen
 import com.example.feature.projects.FirestoreProjectsRepository
+import com.example.feature.projects.LocalProjectsRepository
+import com.example.feature.projects.ProjectsRepository
 import com.example.feature.projects.ProjectsScreen
 import com.example.feature.projects.ProjectsViewModel
 import com.example.feature.settings.SettingsScreen
@@ -135,7 +137,7 @@ fun CreativeStudioApp(
         },
         contentKey = { state ->
             when (state) {
-                is AuthState.Authenticated -> "auth_${state.uid}"
+                is AuthState.Authenticated -> "auth_${state.uid}_${state.isGuest}"
                 else -> "unauth"
             }
         },
@@ -143,9 +145,10 @@ fun CreativeStudioApp(
     ) { state ->
         when (state) {
             is AuthState.Authenticated -> {
-                key(state.uid) {
+                key(state.uid, state.isGuest) {
                     AuthenticatedStudioHost(
                         uid = state.uid,
+                        isGuest = state.isGuest,
                         userProfile = state.profile,
                         authViewModel = authViewModel,
                         settingsRepository = settingsRepository,
@@ -163,6 +166,7 @@ fun CreativeStudioApp(
 @Composable
 private fun AuthenticatedStudioHost(
     uid: String,
+    isGuest: Boolean,
     userProfile: UserProfile,
     authViewModel: AuthViewModel,
     settingsRepository: SettingsPreferencesRepository,
@@ -170,9 +174,15 @@ private fun AuthenticatedStudioHost(
 ) {
     val context = LocalContext.current
     val navController = rememberNavController()
-    val projectsRepository = remember(uid) { FirestoreProjectsRepository(context.applicationContext) }
+    val projectsRepository: ProjectsRepository = remember(uid, isGuest) {
+        if (isGuest) {
+            LocalProjectsRepository(context.applicationContext)
+        } else {
+            FirestoreProjectsRepository(context.applicationContext)
+        }
+    }
     val projectsViewModel: ProjectsViewModel = viewModel(
-        key = "projects_$uid",
+        key = "projects_${uid}_$isGuest",
         factory = ProjectsViewModel.provideFactory(projectsRepository, uid)
     )
 
@@ -329,6 +339,8 @@ private fun AuthenticatedStudioHost(
                             ProfileScreen(
                                 userProfile = userProfile,
                                 projectsViewModel = projectsViewModel,
+                                isGuest = isGuest,
+                                onSignInWithGoogle = { authViewModel.signInWithGoogle(context) },
                                 onSaveBrandKit = { dName, bName, primaryHex, accentHex, onDone ->
                                     authViewModel.updateBrandAndProfile(
                                         displayName = dName,
@@ -338,8 +350,12 @@ private fun AuthenticatedStudioHost(
                                         preferredExportQuality = settings.defaultExportQuality
                                     ) { result ->
                                         onDone(
-                                            if (result.isSuccess) "Brand kit synced to cloud"
-                                            else result.exceptionOrNull()?.localizedMessage ?: "Update failed"
+                                            if (result.isSuccess) {
+                                                if (isGuest) "Brand kit saved locally on device"
+                                                else "Brand kit synced to cloud"
+                                            } else {
+                                                result.exceptionOrNull()?.localizedMessage ?: "Update failed"
+                                            }
                                         )
                                     }
                                 },
@@ -351,7 +367,7 @@ private fun AuthenticatedStudioHost(
 
                         composable<SettingsRoute> {
                             val settingsVm: SettingsViewModel = viewModel(
-                                key = "settings_$uid",
+                                key = "settings_${uid}_$isGuest",
                                 factory = SettingsViewModel.provideFactory(
                                     appContext = context.applicationContext,
                                     prefsRepo = settingsRepository,
@@ -361,7 +377,9 @@ private fun AuthenticatedStudioHost(
                             SettingsScreen(
                                 viewModel = settingsVm,
                                 userProfile = userProfile,
+                                isGuest = isGuest,
                                 onNavigateBack = { navController.popBackStack() },
+                                onSignInWithGoogle = { authViewModel.signInWithGoogle(context) },
                                 onSignOut = { authViewModel.signOut() },
                                 onDeleteAccount = { onErr -> authViewModel.deleteAccount(onErr) }
                             )

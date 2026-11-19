@@ -19,6 +19,7 @@ import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
 import com.google.firebase.Firebase
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
@@ -31,6 +32,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -66,17 +68,50 @@ interface AuthGateway {
 
 class FirebaseAuthGateway(
     private val appContext: Context,
-    private val auth: FirebaseAuth = Firebase.auth,
-    private val db: FirebaseFirestore = FirebaseFirestore.getInstance(
-        appContext.getString(R.string.firestore_database_id)
-    )
+    private val authOverride: FirebaseAuth? = null,
+    private val dbOverride: FirebaseFirestore? = null
 ) : AuthGateway {
 
     private val credentialManager by lazy { CredentialManager.create(appContext) }
 
-    override fun currentIdentity(): AuthenticatedIdentity? = auth.currentUser?.toIdentity()
+    private fun ensureFirebaseReady(): Boolean = try {
+        if (FirebaseApp.getApps(appContext).isNotEmpty()) {
+            true
+        } else {
+            FirebaseApp.initializeApp(appContext) != null
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "FirebaseApp unavailable: ${e.message}")
+        false
+    }
+
+    private fun resolveAuth(): FirebaseAuth? = authOverride ?: try {
+        if (ensureFirebaseReady()) Firebase.auth else null
+    } catch (e: Exception) {
+        Log.w(TAG, "FirebaseAuth unavailable: ${e.message}")
+        null
+    }
+
+    private fun resolveDb(): FirebaseFirestore? = dbOverride ?: try {
+        if (ensureFirebaseReady()) {
+            FirebaseFirestore.getInstance(appContext.getString(R.string.firestore_database_id))
+        } else {
+            null
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "FirebaseFirestore unavailable: ${e.message}")
+        null
+    }
+
+    override fun currentIdentity(): AuthenticatedIdentity? = resolveAuth()?.currentUser?.toIdentity()
 
     override fun observeAuthIdentity(): Flow<AuthenticatedIdentity?> = callbackFlow {
+        val auth = resolveAuth()
+        if (auth == null) {
+            trySend(null)
+            awaitClose { }
+            return@callbackFlow
+        }
         val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
             trySend(firebaseAuth.currentUser?.toIdentity())
         }
@@ -85,6 +120,7 @@ class FirebaseAuthGateway(
     }
 
     override suspend fun attemptSilentSignIn(): AuthenticatedIdentity? {
+        val auth = resolveAuth() ?: return null
         auth.currentUser?.toIdentity()?.let { return it }
         val clientId = resolveWebClientId() ?: return null
         val googleIdOption = GetGoogleIdOption.Builder()
@@ -96,7 +132,9 @@ class FirebaseAuthGateway(
             .addCredentialOption(googleIdOption)
             .build()
         return try {
-            val result = credentialManager.getCredential(appContext, request)
+            val result = kotlinx.coroutines.withTimeoutOrNull(2_500L) {
+                credentialManager.getCredential(appContext, request)
+            } ?: return null
             val cred = result.credential
             if (cred is CustomCredential && cred.type == TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
                 val token = GoogleIdTokenCredential.createFrom(cred.data).idToken
@@ -120,6 +158,13 @@ class FirebaseAuthGateway(
     }
 
     override suspend fun signInWithGoogle(activityContext: Context): InteractiveSignInResult {
+        val auth = resolveAuth()
+        val db = resolveDb()
+        if (auth == null || db == null) {
+            return InteractiveSignInResult.Failure(
+                "Firebase is not configured in this APK build (missing google-services.json). Add GOOGLE_SERVICES_JSON_BASE64 in GitHub Secrets and rebuild."
+            )
+        }
         val clientId = resolveWebClientId()
             ?: return InteractiveSignInResult.Failure(
                 "Google Sign-In configuration missing: default_web_client_id not found"
@@ -165,6 +210,8 @@ class FirebaseAuthGateway(
 
     override suspend fun ensureUserProfile(identity: AuthenticatedIdentity): Result<UserProfile> {
         val path = "users/${identity.uid}"
+        val db = resolveDb()
+            ?: return Result.failure(IllegalStateException("Cloud database is not configured in this build."))
         return try {
             require(identity.uid.isNotBlank()) { "Authenticated UID cannot be blank." }
             val docRef = db.collection("users").document(identity.uid)
@@ -204,6 +251,7 @@ class FirebaseAuthGateway(
     }
 
     override fun observeUserProfile(uid: String): Flow<UserProfile?> {
+        val db = resolveDb() ?: return flowOf(null)
         return db.collection("users").document(uid)
             .snapshots()
             .map { snapshot ->
@@ -217,6 +265,10 @@ class FirebaseAuthGateway(
 
     override suspend fun updateUserProfile(uid: String, profile: UserProfile): Result<Unit> {
         val path = "users/$uid"
+        val auth = resolveAuth()
+            ?: return Result.failure(IllegalStateException("Firebase Auth is not configured in this build."))
+        val db = resolveDb()
+            ?: return Result.failure(IllegalStateException("Cloud database is not configured in this build."))
         return try {
             val currentUid = auth.currentUser?.uid
                 ?: error("User must be signed in before updating profile.")
@@ -238,13 +290,17 @@ class FirebaseAuthGateway(
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to clear credential state: ${e.message}")
             } finally {
-                auth.signOut()
+                resolveAuth()?.signOut()
             }
         }
     }
 
     override suspend fun deleteAccount(uid: String): Result<Unit> {
         val path = "users/$uid"
+        val auth = resolveAuth()
+            ?: return Result.failure(IllegalStateException("Firebase Auth is not configured in this build."))
+        val db = resolveDb()
+            ?: return Result.failure(IllegalStateException("Cloud database is not configured in this build."))
         return try {
             val user = auth.currentUser ?: error("No authenticated user.")
             check(user.uid == uid) { "User mismatch during account deletion." }

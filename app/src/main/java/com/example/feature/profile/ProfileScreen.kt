@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Settings
@@ -67,6 +68,8 @@ private val BrandPaletteSwatches = listOf("#090A0C", "#111317", "#191C21", "#C4C
 fun ProfileScreen(
     userProfile: UserProfile,
     projectsViewModel: ProjectsViewModel,
+    isGuest: Boolean = false,
+    onSignInWithGoogle: () -> Unit = {},
     onSaveBrandKit: (displayName: String, brandName: String, primaryHex: String, accentHex: String, onDone: (String) -> Unit) -> Unit,
     onOpenProjects: () -> Unit,
     onOpenAiAssistant: () -> Unit,
@@ -160,6 +163,23 @@ fun ProfileScreen(
                             text = userProfile.email,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else if (isGuest) {
+                        Text(
+                            text = "Local Guest Workspace · Device Only",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = StudioColors.MetallicSilver
+                        )
+                    }
+
+                    if (isGuest) {
+                        Spacer(modifier = Modifier.height(StudioSpacing.md))
+                        StudioPrimaryButton(
+                            text = "Sign in with Google",
+                            icon = Icons.Rounded.AccountCircle,
+                            onClick = onSignInWithGoogle,
+                            modifier = Modifier.fillMaxWidth(),
+                            testTag = "guest_upgrade_google_button"
                         )
                     }
 
@@ -293,7 +313,7 @@ fun ProfileScreen(
                 ProfileMenuRow(
                     icon = Icons.Rounded.FolderOpen,
                     title = "My Projects",
-                    subtitle = "${allProjects.size} synced studio projects",
+                    subtitle = if (isGuest) "${allProjects.size} local studio projects" else "${allProjects.size} synced studio projects",
                     onClick = onOpenProjects,
                     testTag = "profile_projects_row"
                 )

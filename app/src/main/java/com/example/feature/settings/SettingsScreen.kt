@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Info
@@ -52,6 +53,7 @@ import com.example.R
 import com.example.core.database.UserProfile
 import com.example.core.designsystem.StudioColors
 import com.example.core.designsystem.StudioFilterChip
+import com.example.core.designsystem.StudioPrimaryButton
 import com.example.core.designsystem.StudioSecondaryButton
 import com.example.core.designsystem.StudioSpacing
 import com.example.core.designsystem.StudioSurfaceCard
@@ -64,7 +66,9 @@ private val SupportedLanguages = listOf("English", "Spanish", "French", "German"
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     userProfile: UserProfile,
+    isGuest: Boolean = false,
     onNavigateBack: () -> Unit,
+    onSignInWithGoogle: () -> Unit = {},
     onSignOut: () -> Unit,
     onDeleteAccount: (onError: (String) -> Unit) -> Unit
 ) {
@@ -125,11 +129,21 @@ fun SettingsScreen(
                                     color = MaterialTheme.colorScheme.onBackground
                                 )
                                 Text(
-                                    text = userProfile.email.ifBlank { "Google Authenticated Account" },
+                                    text = if (isGuest) "Local Guest Mode · Stored on device" else userProfile.email.ifBlank { "Google Authenticated Account" },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                        }
+                        if (isGuest) {
+                            Spacer(modifier = Modifier.height(StudioSpacing.md))
+                            StudioPrimaryButton(
+                                text = stringResource(R.string.sign_in_google),
+                                icon = Icons.Rounded.AccountCircle,
+                                onClick = onSignInWithGoogle,
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "settings_guest_google_sign_in_button"
+                            )
                         }
                         Spacer(modifier = Modifier.height(StudioSpacing.md))
                         Row(
@@ -137,14 +151,14 @@ fun SettingsScreen(
                             horizontalArrangement = Arrangement.spacedBy(StudioSpacing.sm)
                         ) {
                             StudioSecondaryButton(
-                                text = stringResource(R.string.sign_out),
+                                text = if (isGuest) "Exit Guest" else stringResource(R.string.sign_out),
                                 icon = Icons.AutoMirrored.Rounded.Logout,
                                 onClick = onSignOut,
                                 modifier = Modifier.weight(1f),
                                 testTag = "settings_sign_out_button"
                             )
                             StudioSecondaryButton(
-                                text = stringResource(R.string.delete_account),
+                                text = if (isGuest) "Clear Data" else stringResource(R.string.delete_account),
                                 icon = Icons.Rounded.DeleteForever,
                                 onClick = { showDeleteConfirm = true },
                                 modifier = Modifier.weight(1f),
@@ -291,12 +305,12 @@ fun SettingsScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Cloud Autosave",
+                                    text = if (isGuest) "Local Autosave" else "Cloud Autosave",
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onBackground
                                 )
                                 Text(
-                                    text = "Sync layer & timeline edits automatically",
+                                    text = if (isGuest) "Save layer & timeline edits automatically on device" else "Sync layer & timeline edits automatically",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -357,12 +371,16 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(StudioSpacing.md))
                             Column {
                                 Text(
-                                    text = "Zero-Trust Account Isolation",
+                                    text = if (isGuest) "Local Guest Isolation" else "Zero-Trust Account Isolation",
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onBackground
                                 )
                                 Text(
-                                    text = "All projects, media assets, and AI edits are strictly scoped to your authenticated Google UID.",
+                                    text = if (isGuest) {
+                                        "All local projects, media assets, and AI edits remain on this device until you sign in with Google."
+                                    } else {
+                                        "All projects, media assets, and AI edits are strictly scoped to your authenticated Google UID."
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -435,10 +453,14 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            title = { Text("Delete Account", color = StudioColors.Error) },
+            title = { Text(if (isGuest) "Clear Local Data" else "Delete Account", color = StudioColors.Error) },
             text = {
                 Text(
-                    "This permanently deletes your profile, all cloud projects, AI history, and local media for this account. Continue?",
+                    if (isGuest) {
+                        "This permanently deletes all local guest projects, AI history, and imported media from this device. Continue?"
+                    } else {
+                        "This permanently deletes your profile, all cloud projects, AI history, and local media for this account. Continue?"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -450,7 +472,7 @@ fun SettingsScreen(
                         onDeleteAccount { err -> deleteError = err }
                     }
                 ) {
-                    Text("Delete Permanently", color = StudioColors.Error)
+                    Text(if (isGuest) "Clear Permanently" else "Delete Permanently", color = StudioColors.Error)
                 }
             },
             dismissButton = {
