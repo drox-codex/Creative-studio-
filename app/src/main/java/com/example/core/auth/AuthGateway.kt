@@ -278,8 +278,14 @@ class FirebaseAuthGateway(
         }
     }
 
+    @android.annotation.SuppressLint("DiscouragedApi")
     private fun resolveWebClientId(): String? = try {
-        appContext.getString(R.string.default_web_client_id).takeIf { it.isNotBlank() }
+        val resId = appContext.resources.getIdentifier(
+            "default_web_client_id",
+            "string",
+            appContext.packageName
+        )
+        if (resId != 0) appContext.getString(resId).takeIf { it.isNotBlank() } else null
     } catch (_: Exception) {
         null
     }

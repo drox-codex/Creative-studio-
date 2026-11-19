@@ -48,10 +48,10 @@ jobs:
       - name: Set up Android SDK & accept licenses
         uses: android-actions/setup-android@v4
 
-      - name: Set up Gradle 9.3.1
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: '9.3.1'
+          gradle-version: 'current'
 
       - name: Prepare .env and Firebase configuration
         env:
@@ -64,7 +64,11 @@ jobs:
             printf '%s' "$GOOGLE_SERVICES_B64" | base64 --decode > app/google-services.json
             echo "Decoded app/google-services.json from GitHub Secret."
           elif [ ! -f "app/google-services.json" ]; then
-            echo "::warning::app/google-services.json not found. Add GOOGLE_SERVICES_JSON_BASE64 secret for Firebase builds."
+            echo "Note: app/google-services.json not found. Add GOOGLE_SERVICES_JSON_BASE64 secret for Firebase runtime configuration."
+            {
+              echo "### Firebase Configuration Notice"
+              echo "\`app/google-services.json\` was not found in the repository and \`GOOGLE_SERVICES_JSON_BASE64\` is not configured. The Release build compiles cleanly without it, but Firebase Auth / Firestore / AI Logic require \`GOOGLE_SERVICES_JSON_BASE64\` at runtime."
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Configure Release signing keystore
@@ -101,7 +105,7 @@ jobs:
               echo "KEY_PASSWORD=$EPHEMERAL_PASS"
               echo "SIGNING_MODE=ephemeral"
             } >> "$GITHUB_ENV"
-            echo "::warning::Signing secrets (ANDROID_KEYSTORE_BASE64, STORE_PASSWORD, KEY_PASSWORD) are not set. Built with an ephemeral CI keystore (not for Google Play upload)."
+            echo "Configured ephemeral CI keystore (not for Google Play upload). Add ANDROID_KEYSTORE_BASE64, STORE_PASSWORD, and KEY_PASSWORD secrets for production signing."
             {
               echo "### Signing Notice"
               echo "Built Release artifacts using an **ephemeral CI keystore** because \`ANDROID_KEYSTORE_BASE64\`, \`STORE_PASSWORD\`, and \`KEY_PASSWORD\` repository secrets are not configured yet."

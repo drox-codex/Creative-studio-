@@ -97,7 +97,7 @@ Outputs are generated at:
 The workflow in `.github/workflows/android-release.yml` is configured specifically for **Release builds** (`assembleRelease` and `bundleRelease`, never debug):
 
 - **Triggers**: Pushes to `main` / `master`, version tags (`v*`), pull requests targeting `main` / `master`, and manual runs (`workflow_dispatch`).
-- **Toolchain**: `ubuntu-24.04`, Temurin JDK `21` (`actions/setup-java@v5`), Android SDK `36` (`android-actions/setup-android@v4`), and Gradle `9.3.1` (`gradle/actions/setup-gradle@v6`).
+- **Toolchain**: `ubuntu-24.04`, Temurin JDK `21` (`actions/setup-java@v5`), Android SDK `36` (`android-actions/setup-android@v4`), and Gradle (`gradle/actions/setup-gradle@v6` with `gradle-version: 'current'`).
 - **Artifacts**: Uploads both `creative-studio-release-apk` (`.apk`) and `creative-studio-release-aab` (`.aab`), and automatically attaches them to a GitHub Release when pushing a `v*` tag.
 
 ### Setting Up Production Signing Secrets in GitHub
